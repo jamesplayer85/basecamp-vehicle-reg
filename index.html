@@ -53,9 +53,7 @@
     <h1 id="formSite"></h1>
     <p class="sub" id="formProduction"></p>
     <p class="sub" id="formDates" style="font-size:13px;color:#888;margin-top:2px;"></p>
-    <div class="disclaimer">
-      Please fill in the form below to register your vehicle on site. Make sure to log your vehicle when arriving on site or ahead of arrival each day. It is the responsibility of the production to ensure all vehicles are logged each day including unit cars and minibuses, deliveries, taxis etc. Failure to register vehicles will result in PCN charges being issued.
-    </div>
+    <div class="disclaimer" id="formDisclaimer"></div>
     <div class="form-card">
       <div class="field">
         <label for="name">Name <span class="req">*</span></label>
@@ -138,6 +136,8 @@ async function init() {
       });
       document.getElementById('parkingAreaField').style.display = 'block';
     }
+    document.getElementById('formDisclaimer').textContent = data.form.disclaimer ||
+      'Please fill in the form below to register your vehicle on site. Make sure to log your vehicle when arriving on site or ahead of arrival each day. It is the responsibility of the production to ensure all vehicles are logged each day including unit cars and minibuses, deliveries, taxis etc. Failure to register vehicles will result in PCN charges being issued.';
     show('formView');
   } catch(e) { show('notFoundView'); }
 }
