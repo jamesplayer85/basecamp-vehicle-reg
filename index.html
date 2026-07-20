@@ -32,6 +32,9 @@
     .success-icon { font-size: 56px; margin-bottom: 16px; }
     .success h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; color: #006766; }
     .success p { color: #555; font-size: 15px; line-height: 1.6; }
+    .success-detail { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px 24px; text-align: left; font-size: 14px; line-height: 2; margin: 20px 0; }
+    .success-detail div span:first-child { font-weight: 700; color: #1A1A1A; margin-right: 6px; }
+    .success-detail div span:last-child { color: #555; }
     .loading { text-align: center; padding: 60px 20px; color: #888; font-size: 15px; }
     .not-found { text-align: center; padding: 60px 20px; }
     .not-found h2 { font-size: 20px; margin-bottom: 8px; }
@@ -65,9 +68,7 @@
       </div>
       <div class="field">
         <label for="dateOfEntry">Date of Entry <span class="req">*</span></label>
-        <select id="dateOfEntry" required>
-          <option value="">Select date…</option>
-        </select>
+        <input type="date" id="dateOfEntry" required>
       </div>
       <div class="field" id="parkingAreaField" style="display:none;">
         <label for="parkingArea">Parking Area</label>
@@ -82,8 +83,15 @@
 
   <div id="successView" class="success">
     <div class="success-icon">✅</div>
-    <h2>Vehicle registered</h2>
-    <p>Your vehicle has been successfully registered for <strong id="successSite"></strong>.<br>If you have any issues on site please speak to The Base Camp Co. team.</p>
+    <h2>Thank you for your submission</h2>
+    <p>Your vehicle has been registered for <strong id="successSite"></strong>.</p>
+    <div class="success-detail">
+      <div><span>Name:</span><span id="successName"></span></div>
+      <div><span>Vehicle Reg:</span><span id="successReg"></span></div>
+      <div><span>Date of Entry:</span><span id="successDate"></span></div>
+      <div id="successParkingRow" style="display:none;"><span>Parking Area:</span><span id="successParking"></span></div>
+    </div>
+    <p style="color:#888;font-size:13px;">If you have any issues on site please speak to The Base Camp Co. team.</p>
   </div>
 </div>
 
@@ -93,12 +101,6 @@ const WORKER_URL = 'https://basecamp-proxy.bt7frcbfh2.workers.dev';
 function fmtDate(d) {
   var p = d.split('-').map(Number);
   return new Intl.DateTimeFormat('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(p[0],p[1]-1,p[2],12));
-}
-
-function getDatesInRange(start, end) {
-  var dates = [], d = new Date(start), e = new Date(end);
-  while (d <= e) { dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
-  return dates;
 }
 
 var formData = null;
@@ -114,20 +116,17 @@ async function init() {
     formData = data.form;
     document.getElementById('formSite').textContent       = data.form.site + '\nVehicle Registration';
     document.getElementById('formProduction').textContent = 'Production: ' + data.form.production;
-    var dates = getDatesInRange(data.form.startDate, data.form.endDate);
-    document.getElementById('formDates').textContent = 'Crew Parking Dates: ' + dates.map(function(d){
-      var p=d.split('-').map(Number);
-      return new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'long'}).format(new Date(p[0],p[1]-1,p[2],12));
-    }).join(', ');
-    // Date dropdown — default to today if in range
-    var today = new Date().toISOString().slice(0,10);
-    var sel = document.getElementById('dateOfEntry');
-    dates.forEach(function(d) {
-      var opt = document.createElement('option');
-      opt.value = d; opt.textContent = fmtDate(d);
-      if (d === today) opt.selected = true;
-      sel.appendChild(opt);
-    });
+    if (data.form.startDate || data.form.endDate) {
+      document.getElementById('formDates').textContent = 'Crew Parking Dates: ' + (data.form.startDate||'') + (data.form.endDate ? ' – ' + data.form.endDate : '');
+    }
+    // Default the date picker to today
+    var dateInput = document.getElementById('dateOfEntry');
+    dateInput.value = new Date().toISOString().slice(0,10);
+    // Best-effort min/max if the admin's start/end text happens to parse as real dates
+    var startParsed = new Date(data.form.startDate);
+    var endParsed   = new Date(data.form.endDate);
+    if (!isNaN(startParsed)) dateInput.min = startParsed.toISOString().slice(0,10);
+    if (!isNaN(endParsed))   dateInput.max = endParsed.toISOString().slice(0,10);
     // Parking areas
     if (data.form.parkingAreas && data.form.parkingAreas.length) {
       var pa = document.getElementById('parkingArea');
@@ -171,6 +170,13 @@ async function submitForm() {
     var data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Submission failed');
     document.getElementById('successSite').textContent = formData.site;
+    document.getElementById('successName').textContent = name;
+    document.getElementById('successReg').textContent  = vehicleReg;
+    document.getElementById('successDate').textContent = fmtDate(dateOfEntry);
+    if (parkingArea) {
+      document.getElementById('successParking').textContent = parkingArea;
+      document.getElementById('successParkingRow').style.display = '';
+    }
     show('successView');
   } catch(e) {
     errorEl.textContent = e.message || 'Submission failed. Please try again.';
