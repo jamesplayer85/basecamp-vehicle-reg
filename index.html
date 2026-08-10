@@ -122,11 +122,6 @@ async function init() {
     // Default the date picker to today
     var dateInput = document.getElementById('dateOfEntry');
     dateInput.value = new Date().toISOString().slice(0,10);
-    // Best-effort min/max if the admin's start/end text happens to parse as real dates
-    var startParsed = new Date(data.form.startDate);
-    var endParsed   = new Date(data.form.endDate);
-    if (!isNaN(startParsed)) dateInput.min = startParsed.toISOString().slice(0,10);
-    if (!isNaN(endParsed))   dateInput.max = endParsed.toISOString().slice(0,10);
     // Parking areas
     if (data.form.parkingAreas && data.form.parkingAreas.length) {
       var pa = document.getElementById('parkingArea');
