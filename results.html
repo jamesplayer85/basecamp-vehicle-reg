@@ -57,6 +57,7 @@
     <div class="card">
       <div class="search-bar" style="display:flex;gap:10px;align-items:center;">
         <input type="text" id="search" placeholder="Search by name or registration…" oninput="renderTable()" style="flex:1;">
+        <select id="dateFilter" onchange="renderTable()" style="padding:11px 12px;border:1.5px solid #d0d0d0;border-radius:10px;font-size:13px;font-family:inherit;outline:none;background:#fff;"><option value="">All dates</option></select>
         <button onclick="downloadXlsx()" style="background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">↓ Excel</button>
       </div>
       <div id="tableWrap"></div>
@@ -114,21 +115,40 @@ async function loadSubs() {
     var data = await res.json();
     allSubs = data.submissions || [];
     document.getElementById('lastChecked').textContent = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    populateDateFilter();
     renderTable();
   } catch(e) { /* keep showing last known data on a transient failure */ }
 }
 
-function renderTable() {
-  var search = document.getElementById('search').value.trim().toLowerCase();
-  var subs = allSubs.filter(function(s) {
+function populateDateFilter() {
+  var sel = document.getElementById('dateFilter');
+  var current = sel.value;
+  var dates = [];
+  allSubs.forEach(function(s) { if (s.dateOfEntry && dates.indexOf(s.dateOfEntry) === -1) dates.push(s.dateOfEntry); });
+  dates.sort();
+  sel.innerHTML = '<option value="">All dates</option>' + dates.map(function(d) {
+    return '<option value="' + d + '">' + fmtDate(d) + '</option>';
+  }).join('');
+  if (dates.indexOf(current) !== -1) sel.value = current;
+}
+
+function getFilteredSubs() {
+  var search  = document.getElementById('search').value.trim().toLowerCase();
+  var dateSel = document.getElementById('dateFilter').value;
+  return allSubs.filter(function(s) {
+    if (dateSel && s.dateOfEntry !== dateSel) return false;
     if (!search) return true;
     return (s.name||'').toLowerCase().includes(search) || (s.vehicleReg||'').toLowerCase().includes(search);
   });
+}
+
+function renderTable() {
+  var subs = getFilteredSubs();
   subs = subs.slice().sort(function(a,b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
-  document.getElementById('countPill').textContent = allSubs.length + (allSubs.length === 1 ? ' registered' : ' registered');
+  document.getElementById('countPill').textContent = subs.length + ' shown · ' + allSubs.length + ' total';
   var wrap = document.getElementById('tableWrap');
   if (!subs.length) {
-    wrap.innerHTML = '<div class="empty-state">' + (allSubs.length ? 'No matches for that search.' : 'No vehicles registered yet.') + '</div>';
+    wrap.innerHTML = '<div class="empty-state">' + (allSubs.length ? 'No matches for that filter.' : 'No vehicles registered yet.') + '</div>';
     return;
   }
   wrap.innerHTML = '<table><thead><tr>'
@@ -157,7 +177,8 @@ function loadExcelLib() {
 }
 
 async function downloadXlsx() {
-  if (!allSubs.length) { alert('No registrations to export yet.'); return; }
+  var filtered = getFilteredSubs();
+  if (!filtered.length) { alert('No registrations to export for the current filter.'); return; }
   await loadExcelLib();
   var wb = new ExcelJS.Workbook();
   var ws = wb.addWorksheet('Vehicle Registrations');
@@ -168,7 +189,7 @@ async function downloadXlsx() {
     { header: 'Parking Area',       key: 'parking', width: 24 },
     { header: 'Registered At',      key: 'ts',      width: 22 }
   ];
-  var sorted = allSubs.slice().sort(function(a,b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
+  var sorted = filtered.slice().sort(function(a,b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
   sorted.forEach(function(s) {
     ws.addRow({ name: s.name, reg: s.vehicleReg, date: fmtDate(s.dateOfEntry), parking: s.parkingArea||'', ts: fmtTime(s.submittedAt) });
   });
