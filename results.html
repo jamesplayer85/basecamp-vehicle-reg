@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle Registrations — The Base Camp Co.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root { --teal: #006766; --teal2: #005555; --border: #E0DED8; --bg: #F2F1ED; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); font-family: 'DM Sans', -apple-system, sans-serif; color: #1A1A1A; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+    .logo { display: block; height: 52px; width: auto; margin: 0 auto 20px; }
+    h1 { font-size: 30px; font-weight: 400; text-align: center; line-height: 1.1; margin-bottom: 4px; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; }
+    .sub { text-align: center; color: #555; font-size: 14px; margin-bottom: 4px; }
+    .meta-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 22px; font-size: 12px; color: #888; flex-wrap: wrap; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; }
+    .search-bar { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .search-bar input { width: 100%; padding: 11px 14px; border: 1.5px solid #d0d0d0; border-radius: 10px; font-size: 14px; font-family: inherit; outline: none; }
+    .search-bar input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,103,102,.1); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { background: var(--teal); color: #fff; text-align: left; padding: 10px 14px; font-weight: 700; font-size: 12px; position: sticky; top: 0; }
+    tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f7faf9; }
+    .reg { font-family: monospace; font-weight: 700; letter-spacing: 0.05em; }
+    .empty-state, .loading, .not-found { text-align: center; padding: 60px 20px; color: #888; }
+    .not-found h2 { color: #1A1A1A; margin-bottom: 8px; font-size: 20px; }
+    .count-pill { background: var(--bg); border-radius: 999px; padding: 3px 12px; font-size: 12px; font-weight: 700; color: var(--teal); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <img src="https://pub-3e81d3d6e43444f19a79eb95fb50622b.r2.dev/base-camp-logo.png"
+       onerror="this.src='https://jamesplayer85.github.io/980-gwr-signin/assets/base-camp-logo-clean.png'"
+       alt="The Base Camp Co." class="logo">
+
+  <div id="loadingView" class="loading">Loading…</div>
+  <div id="notFoundView" class="not-found" style="display:none;">
+    <h2>Not found</h2>
+    <p>This link is invalid or has expired.</p>
+  </div>
+
+  <div id="resultsView" style="display:none;">
+    <h1 id="formSite"></h1>
+    <p class="sub" id="formProduction"></p>
+    <p class="sub" id="formDates" style="font-size:13px;color:#888;"></p>
+    <div class="meta-bar">
+      <span class="live-dot"></span>
+      <span>Live — updates automatically</span>
+      <span>· Last checked <span id="lastChecked">just now</span></span>
+      <span class="count-pill" id="countPill">0 registered</span>
+    </div>
+
+    <div class="card">
+      <div class="search-bar">
+        <input type="text" id="search" placeholder="Search by name or registration…" oninput="renderTable()">
+      </div>
+      <div id="tableWrap"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const WORKER_URL = 'https://basecamp-proxy.bt7frcbfh2.workers.dev';
+var formRef = '';
+var allSubs = [];
+
+function show(id) {
+  ['loadingView','notFoundView','resultsView'].forEach(function(v) {
+    document.getElementById(v).style.display = v === id ? 'block' : 'none';
+  });
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  var p = d.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric'}).format(new Date(p[0],p[1]-1,p[2],12));
+}
+
+function fmtTime(ts) {
+  return new Date(ts).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+function escHtml(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function init() {
+  var params = new URLSearchParams(location.search);
+  formRef = params.get('ref') || '';
+  if (!formRef) { show('notFoundView'); return; }
+  try {
+    var res  = await fetch(WORKER_URL + '/v2/vreg/get?ref=' + encodeURIComponent(formRef));
+    var data = await res.json();
+    if (!data.ok || !data.form) { show('notFoundView'); return; }
+    document.getElementById('formSite').textContent       = data.form.site;
+    document.getElementById('formProduction').textContent = 'Production: ' + data.form.production;
+    if (data.form.startDate || data.form.endDate) {
+      document.getElementById('formDates').textContent = (data.form.startDate||'') + (data.form.endDate ? ' – ' + data.form.endDate : '');
+    }
+    show('resultsView');
+    await loadSubs();
+    setInterval(loadSubs, 30000);
+  } catch(e) { show('notFoundView'); }
+}
+
+async function loadSubs() {
+  try {
+    var res  = await fetch(WORKER_URL + '/v2/vreg/submissions?ref=' + encodeURIComponent(formRef));
+    var data = await res.json();
+    allSubs = data.submissions || [];
+    document.getElementById('lastChecked').textContent = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    renderTable();
+  } catch(e) { /* keep showing last known data on a transient failure */ }
+}
+
+function renderTable() {
+  var search = document.getElementById('search').value.trim().toLowerCase();
+  var subs = allSubs.filter(function(s) {
+    if (!search) return true;
+    return (s.name||'').toLowerCase().includes(search) || (s.vehicleReg||'').toLowerCase().includes(search);
+  });
+  subs = subs.slice().sort(function(a,b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
+  document.getElementById('countPill').textContent = allSubs.length + (allSubs.length === 1 ? ' registered' : ' registered');
+  var wrap = document.getElementById('tableWrap');
+  if (!subs.length) {
+    wrap.innerHTML = '<div class="empty-state">' + (allSubs.length ? 'No matches for that search.' : 'No vehicles registered yet.') + '</div>';
+    return;
+  }
+  wrap.innerHTML = '<table><thead><tr>'
+    + '<th>Name</th><th>Registration</th><th>Date of Entry</th><th>Parking Area</th><th>Registered At</th>'
+    + '</tr></thead><tbody>'
+    + subs.map(function(s) {
+        return '<tr>'
+          + '<td>' + escHtml(s.name) + '</td>'
+          + '<td class="reg">' + escHtml(s.vehicleReg) + '</td>'
+          + '<td>' + fmtDate(s.dateOfEntry) + '</td>'
+          + '<td>' + escHtml(s.parkingArea||'—') + '</td>'
+          + '<td>' + fmtTime(s.submittedAt) + '</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>';
+}
+
+init();
+</script>
+</body>
+</html>
