@@ -55,8 +55,9 @@
     </div>
 
     <div class="card">
-      <div class="search-bar">
-        <input type="text" id="search" placeholder="Search by name or registration…" oninput="renderTable()">
+      <div class="search-bar" style="display:flex;gap:10px;align-items:center;">
+        <input type="text" id="search" placeholder="Search by name or registration…" oninput="renderTable()" style="flex:1;">
+        <button onclick="downloadXlsx()" style="background:var(--teal);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">↓ Excel</button>
       </div>
       <div id="tableWrap"></div>
     </div>
@@ -143,6 +144,50 @@ function renderTable() {
           + '</tr>';
       }).join('')
     + '</tbody></table>';
+}
+
+function loadExcelLib() {
+  return new Promise(function(resolve) {
+    if (window.ExcelJS) { resolve(); return; }
+    var script  = document.createElement('script');
+    script.src  = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+    script.onload = resolve;
+    document.head.appendChild(script);
+  });
+}
+
+async function downloadXlsx() {
+  if (!allSubs.length) { alert('No registrations to export yet.'); return; }
+  await loadExcelLib();
+  var wb = new ExcelJS.Workbook();
+  var ws = wb.addWorksheet('Vehicle Registrations');
+  ws.columns = [
+    { header: 'Name',               key: 'name',    width: 24 },
+    { header: 'Vehicle Registration', key: 'reg',    width: 20 },
+    { header: 'Date Of Entry',      key: 'date',    width: 18 },
+    { header: 'Parking Area',       key: 'parking', width: 24 },
+    { header: 'Registered At',      key: 'ts',      width: 22 }
+  ];
+  var sorted = allSubs.slice().sort(function(a,b) { return new Date(b.submittedAt) - new Date(a.submittedAt); });
+  sorted.forEach(function(s) {
+    ws.addRow({ name: s.name, reg: s.vehicleReg, date: fmtDate(s.dateOfEntry), parking: s.parkingArea||'', ts: fmtTime(s.submittedAt) });
+  });
+  var headerRow = ws.getRow(1);
+  headerRow.eachCell(function(cell) {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF006766' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+  });
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  ws.autoFilter = { from: 'A1', to: 'E1' };
+  for (var r = 2; r <= ws.rowCount; r++) {
+    ws.getRow(r).eachCell(function(cell) { cell.border = { bottom: { style: 'thin', color: { argb: 'FFE0DED8' } } }; });
+  }
+  var buf = await wb.xlsx.writeBuffer();
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download = formRef + '-VehicleReg.xlsx';
+  a.click();
 }
 
 init();
