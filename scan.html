@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1A1F1E">
+  <title>Vehicle Scanner — The Base Camp Co.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --teal:#006766; --dark:#1A1F1E; --green:#0d9488; --amber:#d97706; --red:#dc2626; --bg:#F2F1ED; }
+    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    html,body { height:100%; }
+    body { background:var(--dark); color:#fff; font-family:'DM Sans',-apple-system,sans-serif; overflow:hidden; }
+    #app { display:flex; flex-direction:column; height:100%; max-width:640px; margin:0 auto; }
+    header { padding:calc(10px + env(safe-area-inset-top)) 16px 10px; text-align:center; flex:0 0 auto; }
+    header h1 { font-family:'Bebas Neue',sans-serif; font-weight:400; font-size:24px; letter-spacing:.06em; line-height:1.1; }
+    header .sub { font-size:12px; color:#9ca3af; margin-top:2px; }
+    .stats { display:flex; justify-content:center; gap:14px; font-size:12px; color:#9ca3af; margin-top:6px; }
+    .stats b { color:#fff; }
+    #stage { position:relative; flex:1 1 auto; min-height:200px; background:#000; overflow:hidden; }
+    video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    #guide { position:absolute; left:50%; top:42%; width:84%; max-width:420px; aspect-ratio:4.2/1; transform:translate(-50%,-50%);
+      border:3px solid rgba(255,255,255,.85); border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,.45); transition:border-color .2s; }
+    #guide.reading { border-color:#facc15; }
+    #hint { position:absolute; left:0; right:0; top:calc(42% + 60px); text-align:center; font-size:13px; color:#e5e7eb; text-shadow:0 1px 3px #000; padding:0 20px; }
+    #seen { position:absolute; left:0; right:0; bottom:10px; text-align:center; font-size:12px; color:#d1d5db; text-shadow:0 1px 3px #000; }
+    #startPanel { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:24px; text-align:center; background:var(--dark); }
+    #startPanel img { height:54px; }
+    #startPanel input { width:100%; max-width:300px; padding:12px 14px; border-radius:10px; border:1.5px solid #374151; background:#111716; color:#fff; font-size:15px; font-family:inherit; text-align:center; }
+    .btn { border:none; border-radius:10px; padding:14px 22px; font-size:16px; font-weight:700; font-family:inherit; cursor:pointer; background:var(--teal); color:#fff; }
+    .btn.ghost { background:#2a3230; color:#e5e7eb; }
+    .btn.small { padding:10px 14px; font-size:13px; }
+    #msg { font-size:13px; color:#9ca3af; max-width:320px; line-height:1.5; }
+    .bar { display:flex; gap:8px; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); flex:0 0 auto; background:var(--dark); }
+    .bar .btn { flex:1; }
+    #recent { flex:0 0 auto; max-height:26%; overflow-y:auto; background:#111716; border-top:1px solid #2a3230; }
+    #recent .row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid #1f2826; font-size:13px; }
+    #recent .tag { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+    #recent .reg { font-family:monospace; font-weight:700; letter-spacing:.06em; }
+    #recent .info { flex:1; color:#9ca3af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #recent .time { color:#6b7280; font-size:11px; }
+    #recent .empty { padding:12px; text-align:center; color:#6b7280; font-size:12px; }
+    #result { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; z-index:20; }
+    #result.show { display:flex; }
+    #result.green { background:var(--green); } #result.amber { background:var(--amber); } #result.red { background:var(--red); } #result.grey { background:#4b5563; }
+    #rWord { font-family:'Bebas Neue',sans-serif; font-size:54px; letter-spacing:.04em; line-height:1; }
+    #rPlate { font-family:monospace; font-weight:800; font-size:40px; letter-spacing:.1em; margin:14px 0 6px; background:#fff; color:#111; padding:6px 18px; border-radius:8px; }
+    #rWho { font-size:20px; font-weight:700; margin-top:6px; }
+    #rDet { font-size:14px; opacity:.9; margin-top:8px; white-space:pre-line; }
+    #rTap { position:absolute; bottom:calc(20px + env(safe-area-inset-bottom)); font-size:12px; opacity:.7; }
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,.75); display:none; align-items:center; justify-content:center; padding:20px; z-index:30; }
+    .modal.show { display:flex; }
+    .modal .card { background:#fff; color:#111; border-radius:14px; padding:20px; width:100%; max-width:340px; }
+    .modal h3 { font-size:16px; margin-bottom:12px; }
+    .modal input { width:100%; padding:12px; border:1.5px solid #d0d0d0; border-radius:10px; font-size:18px; font-family:monospace; font-weight:700; letter-spacing:.1em; text-transform:uppercase; margin-bottom:10px; }
+    .modal input.plain { font-family:inherit; font-weight:400; letter-spacing:0; text-transform:none; font-size:15px; }
+    .modal .row { display:flex; gap:8px; margin-top:4px; }
+    .modal .row .btn { flex:1; padding:12px; font-size:14px; }
+    .notfound { padding:60px 24px; text-align:center; color:#9ca3af; }
+    #queueNote { font-size:11px; color:#fbbf24; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="hSite">Vehicle Scanner</h1>
+    <div class="sub" id="hSub">Loading…</div>
+    <div class="stats"><span>Today: <b id="stToday">0</b></span><span>This phone: <b id="stPhone">0</b></span><span id="queueNote"></span></div>
+  </header>
+
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <div id="guide"></div>
+    <div id="hint">Point at a number plate</div>
+    <div id="seen"></div>
+    <div id="startPanel">
+      <img src="https://pub-3e81d3d6e43444f19a79eb95fb50622b.r2.dev/base-camp-logo.png"
+           onerror="this.src='https://jamesplayer85.github.io/980-gwr-signin/assets/base-camp-logo-clean.png'" alt="The Base Camp Co.">
+      <input id="deviceName" type="text" placeholder="Name this phone (e.g. Gate 1)" maxlength="30">
+      <button class="btn" id="btnStart">Start scanning</button>
+      <div id="msg">Point the camera at a number plate. Each car is checked against this booking's list and added if it isn't already on it.</div>
+    </div>
+  </div>
+
+  <div id="recent"><div class="empty">Cars scanned on this phone will appear here</div></div>
+
+  <div class="bar">
+    <button class="btn ghost small" id="btnPause">Pause</button>
+    <button class="btn ghost small" id="btnTorch" style="display:none;">Torch</button>
+    <button class="btn ghost small" id="btnPhoto">Photo</button>
+    <button class="btn small" id="btnType">Type reg</button>
+  </div>
+  <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;">
+</div>
+
+<div id="result"><div id="rWord"></div><div id="rPlate"></div><div id="rWho"></div><div id="rDet"></div><div id="rTap">Tap to dismiss</div></div>
+
+<div class="modal" id="typeModal"><div class="card">
+  <h3>Enter a registration</h3>
+  <input id="typeReg" type="text" placeholder="AB12 CDE" autocomplete="off" autocapitalize="characters">
+  <input id="typeName" class="plain" type="text" placeholder="Driver name (optional)" autocomplete="off">
+  <div class="row"><button class="btn ghost" id="btnTypeCancel">Cancel</button><button class="btn" id="btnTypeGo">Add</button></div>
+</div></div>
+
+<div class="notfound" id="notFound" style="display:none;"><h2 style="color:#fff;margin-bottom:8px;">Scanner link not valid</h2>This scanner link is invalid or has expired.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js" defer></script>
+<script>
+const WORKER_URL = 'https://basecamp-proxy.bt7frcbfh2.workers.dev';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('bcscan_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('bcscan_' + k, JSON.stringify(v)); } catch (e) {} }
+};
+const norm = s => String(s == null ? '' : s).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const esc = s => String(s || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+function pretty(r) {
+  r = norm(r);
+  if (/^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(r)) return r.slice(0, 4) + ' ' + r.slice(4);
+  return r;
+}
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/London' });
+
+const formRef = new URLSearchParams(location.search).get('ref') || '';
+let form = null, device = store.get('device', '');
+let recent = store.get('recent_' + formRef + '_' + today(), []);
+let todayCount = 0;
+
+/* ---------- Sound ---------- */
+let actx = null;
+function unlockAudio() {
+  try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+}
+function tone(f, start, dur, type, vol) {
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine'; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, actx.currentTime + start);
+  g.gain.exponentialRampToValueAtTime(vol || 0.5, actx.currentTime + start + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + start + dur);
+  o.connect(g); g.connect(actx.destination); o.start(actx.currentTime + start); o.stop(actx.currentTime + start + dur + 0.05);
+}
+function ping(level) {
+  if (navigator.vibrate) navigator.vibrate(level === 'green' ? [80] : level === 'amber' ? [80, 80, 80] : [300]);
+  if (!actx) return;
+  try {
+    if (level === 'green') { tone(880, 0, 0.12); tone(1320, 0.14, 0.2); }
+    else if (level === 'amber') { tone(660, 0, 0.15, 'triangle'); tone(990, 0.2, 0.2, 'triangle'); }
+    else if (level === 'again') tone(1320, 0, 0.1);
+    else tone(220, 0, 0.5, 'square', 0.35);
+  } catch (e) {}
+}
+
+/* ---------- Result flash ---------- */
+let showing = false, hideTimer = null;
+function showResult(o) {
+  $('rWord').textContent = o.word;
+  $('rPlate').textContent = o.reg ? pretty(o.reg) : '';
+  $('rPlate').style.display = o.reg ? '' : 'none';
+  $('rWho').textContent = o.who || '';
+  $('rDet').textContent = o.det || '';
+  $('result').className = 'show ' + o.level; showing = true;
+  ping(o.sound || o.level);
+  clearTimeout(hideTimer); hideTimer = setTimeout(hideResult, o.ms || 1500);
+}
+function hideResult() { $('result').className = ''; showing = false; }
+$('result').addEventListener('click', hideResult);
+
+function drawRecent() {
+  const el = $('recent');
+  $('stPhone').textContent = recent.filter(e => e.level !== 'red').length;
+  if (!recent.length) { el.innerHTML = '<div class="empty">Cars scanned on this phone will appear here</div>'; return; }
+  const col = { green:'var(--green)', amber:'var(--amber)', red:'var(--red)' };
+  el.innerHTML = recent.map(e => '<div class="row"><span class="tag" style="background:' + (col[e.level] || '#6b7280') + '"></span>'
+    + '<span class="reg">' + esc(pretty(e.reg)) + '</span><span class="info">' + esc(e.info) + '</span>'
+    + '<span class="time">' + new Date(e.at).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) + '</span></div>').join('');
+}
+
+/* ---------- Recording a scan ---------- */
+function getQueue() { return store.get('queue_' + formRef, []); }
+function setQueue(q) { store.set('queue_' + formRef, q); $('queueNote').textContent = q.length ? q.length + ' waiting to send' : ''; }
+
+async function postScan(entry) {
+  const res = await fetch(WORKER_URL + '/v2/vreg/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ ref: formRef, device: device }, entry))
+  });
+  return res.json();
+}
+let flushing = false;
+async function flushQueue() {
+  if (flushing) return; flushing = true;
+  try {
+    let q = getQueue();
+    while (q.length) {
+      const d = await postScan(q[0]);
+      if (d.error && !d.ok && /Invalid|not found/i.test(d.error)) { /* drop it */ }
+      else if (!d.ok) throw new Error(d.error || 'failed');
+      q = getQueue(); q.shift(); setQueue(q);
+    }
+  } catch (e) { /* offline: try again later */ }
+  flushing = false;
+}
+setInterval(flushQueue, 15000);
+window.addEventListener('online', flushQueue);
+
+async function record(reg, how, name) {
+  reg = norm(reg);
+  if (reg.length < 2 || reg.length > 8) return;
+  const entry = { vehicleReg: reg, how: how, name: name || '' };
+  const now = new Date();
+  let d;
+  try { d = await postScan(entry); }
+  catch (e) {
+    // No signal: keep it on the phone and send when back online.
+    const q = getQueue(); q.push(entry); setQueue(q);
+    showResult({ level:'amber', word:'SAVED ON PHONE', reg, det:'No signal – it will be added to the list when back online', sound:'amber', ms:1800 });
+    pushRecent(reg, 'amber', 'Waiting to send', now);
+    return;
+  }
+  if (!d.ok) {
+    showResult({ level:'red', word:'COULD NOT ADD', reg, det: d.error || 'Try again', ms:2000 });
+    return;
+  }
+  if (d.status === 'already') {
+    showResult({ level:'green', sound:'again', word:'ALREADY ON LIST', reg, who: d.name && d.name !== 'Scanned on site' ? d.name : '',
+      det: 'Registered for today' + (d.source === 'scan' ? ' (scanned earlier)' : ''), ms:1200 });
+    pushRecent(reg, 'green', 'Already on list' + (d.name && d.name !== 'Scanned on site' ? ' · ' + d.name : ''), now);
+  } else {
+    todayCount++; $('stToday').textContent = todayCount;
+    showResult({ level:'amber', word:'ADDED TO LIST', reg, who: name || '', det:'Not registered beforehand – added by scan', ms:1500 });
+    pushRecent(reg, 'amber', 'Added by scan' + (name ? ' · ' + name : ''), now);
+  }
+}
+function pushRecent(reg, level, info, at) {
+  recent.unshift({ reg, level, info, at: at.toISOString() });
+  if (recent.length > 200) recent.pop();
+  store.set('recent_' + formRef + '_' + today(), recent);
+  drawRecent();
+}
+
+async function refreshCount() {
+  try {
+    const res = await fetch(WORKER_URL + '/v2/vreg/submissions?ref=' + encodeURIComponent(formRef) + '&date=' + today());
+    const d = await res.json();
+    todayCount = (d.submissions || []).length; $('stToday').textContent = todayCount;
+  } catch (e) {}
+}
+
+/* ---------- Plate reading ---------- */
+const video = $('video'), guide = $('guide'), seenEl = $('seen'), hintEl = $('hint');
+let tessWorker = null, tessReady = null;
+function getTess() {
+  if (tessReady) return tessReady;
+  tessReady = (async () => {
+    const w = await Tesseract.createWorker('eng', 1);
+    await w.setParameters({ tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', tessedit_pageseg_mode:'7' });
+    tessWorker = w; return w;
+  })();
+  tessReady.catch(() => { tessReady = null; });
+  return tessReady;
+}
+// Fix common OCR mix-ups inside a 7-character current-format plate (AA00AAA).
+function coerceCurrent(t) {
+  const toL = { '0':'O', '1':'I', '5':'S', '8':'B', '2':'Z', '6':'G' }, toN = { 'O':'0', 'I':'1', 'S':'5', 'B':'8', 'Z':'2', 'G':'6', 'Q':'0', 'D':'0' };
+  let out = '';
+  for (let i = 0; i < 7; i++) {
+    const c = t[i], isNum = i === 2 || i === 3;
+    out += isNum ? (/[0-9]/.test(c) ? c : (toN[c] || '?')) : (/[A-Z]/.test(c) ? c : (toL[c] || '?'));
+  }
+  return out.indexOf('?') < 0 ? out : null;
+}
+function extractReg(raw) {
+  const lines = String(raw || '').toUpperCase().split(/\n+/).map(norm).filter(Boolean);
+  for (const t of lines) for (let i = 0; i + 7 <= t.length; i++) {
+    const w = t.slice(i, i + 7);
+    if (/^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(w)) return w;
+  }
+  for (const t of lines) for (let i = 0; i + 7 <= t.length; i++) { const c = coerceCurrent(t.slice(i, i + 7)); if (c && t.length <= 9) return c; }
+  return null;
+}
+function binarise(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data, n = w * h, g = new Uint8ClampedArray(n), hist = new Array(256).fill(0);
+  for (let i = 0; i < n; i++) { const v = (d[i*4]*0.299 + d[i*4+1]*0.587 + d[i*4+2]*0.114) | 0; g[i] = v; hist[v]++; }
+  let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+  let sumB = 0, wB = 0, best = 0, thr = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue; const wF = n - wB; if (!wF) break;
+    sumB += t * hist[t]; const mB = sumB / wB, mF = (sum - sumB) / wF, b = wB * wF * (mB - mF) * (mB - mF);
+    if (b > best) { best = b; thr = t; }
+  }
+  for (let i = 0; i < n; i++) { const v = g[i] < thr ? 0 : 255; d[i*4] = d[i*4+1] = d[i*4+2] = v; d[i*4+3] = 255; }
+  ctx.putImageData(img, 0, 0);
+}
+// The part of the video inside the guide box, expanded a little: [sx, sy, sw, sh] in video pixels.
+function guideRect(padX, padYTop, padH) {
+  const vw = video.videoWidth, vh = video.videoHeight; if (!vw || !vh) return null;
+  const vr = video.getBoundingClientRect(), gr = guide.getBoundingClientRect();
+  const scale = Math.max(vr.width / vw, vr.height / vh);
+  const offX = (vr.width - vw * scale) / 2, offY = (vr.height - vh * scale) / 2;
+  let sx = (gr.left - vr.left - offX) / scale, sy = (gr.top - vr.top - offY) / scale, sw = gr.width / scale, sh = gr.height / scale;
+  sx -= sw * padX; sw *= 1 + padX * 2; sy -= sh * padYTop; sh *= padH;
+  sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(vw - sx, sw); sh = Math.min(vh - sy, sh);
+  return [sx, sy, sw, sh];
+}
+function grabForAI() {
+  const r = guideRect(0.15, 0.9, 2.8); if (!r) return null;
+  const k = Math.min(1, 1000 / r[2]), c = document.createElement('canvas');
+  c.width = Math.round(r[2] * k); c.height = Math.round(r[3] * k);
+  c.getContext('2d').drawImage(video, r[0], r[1], r[2], r[3], 0, 0, c.width, c.height);
+  return c;
+}
+async function aiRead(canvas) {
+  const image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(WORKER_URL + '/v2/vreg/read', { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ ref: formRef, image }), signal: ctrl.signal });
+    const d = await res.json();
+    if (!d || !d.ok) throw new Error((d && d.error) || 'No reply');
+    return d;
+  } finally { clearTimeout(t); }
+}
+// Backup reader (free, in the phone) used when the AI reader isn't available.
+async function tessRead(canvas) {
+  const w = await getTess();
+  const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently:true });
+  const h = 110, s = h / canvas.height; c.width = Math.round(canvas.width * s); c.height = h;
+  ctx.drawImage(canvas, 0, 0, c.width, c.height); binarise(ctx, c.width, c.height);
+  const { data } = await w.recognize(c);
+  return extractReg(data.text);
+}
+
+let aiBusy = false, lastPlate = '', lastPlateAt = 0, aiFails = 0;
+async function readNow(auto) {
+  if (aiBusy || showing) return;
+  if (auto !== true) unlockAudio();
+  aiBusy = true; guide.classList.add('reading'); seenEl.textContent = 'Reading…';
+  try {
+    const c = grabForAI(); if (!c) throw new Error('No picture');
+    let plate = null, none = false;
+    try { const r = await aiRead(c); aiFails = 0; if (r.plate) plate = r.plate; else none = true; }
+    catch (e) {
+      aiFails++;
+      seenEl.textContent = 'AI reader unavailable – using backup';
+      try { plate = await tessRead(c); if (!plate) none = true; } catch (e2) { none = true; }
+    }
+    if (plate) {
+      plate = norm(plate);
+      const now = Date.now();
+      if (auto === true && lastPlate === plate && now - lastPlateAt < 12000) { lastPlateAt = now; return; }
+      lastPlate = plate; lastPlateAt = now; noneStreak = 0;
+      seenEl.textContent = 'Read: ' + pretty(plate);
+      record(plate, auto === true ? 'camera' : 'tap');
+    } else if (none) {
+      lastNoneAt = Date.now(); armed = true; noneStreak++;
+      seenEl.textContent = 'No plate in the box';
+      if (auto !== true) showResult({ level:'grey', sound:'none', word:'NO PLATE FOUND', det:'Move closer so the plate fills the box', ms:1500 });
+    }
+  } catch (e) { seenEl.textContent = 'Couldn\'t take a picture: ' + e.message; }
+  finally { aiBusy = false; guide.classList.remove('reading'); }
+}
+
+/* ---------- Automatic reading: send a picture when something plate-like is held steady ---------- */
+const thumb = document.createElement('canvas'); thumb.width = 96; thumb.height = 32;
+const tctx = thumb.getContext('2d', { willReadFrequently:true });
+let lastSig = null, lastSentSig = null, lastAiAt = 0, plateTicks = 0, emptyTicks = 0, armed = true, noneStreak = 0, lastNoneAt = 0;
+const aiTimes = [];
+function sceneSig() {
+  const r = guideRect(0, 0, 1); if (!r) return null;
+  tctx.drawImage(video, r[0], r[1], r[2], r[3], 0, 0, 96, 32);
+  const d = tctx.getImageData(0, 0, 96, 32).data, g = new Uint8Array(96 * 32);
+  for (let i = 0; i < g.length; i++) g[i] = (d[i*4]*0.3 + d[i*4+1]*0.59 + d[i*4+2]*0.11) | 0;
+  return g;
+}
+const sigDiff = (a, b) => { let t = 0; for (let i = 0; i < a.length; i += 2) t += Math.abs(a[i] - b[i]); return t / (a.length / 2); };
+function edgeScore(g) {
+  let n = 0;
+  for (let y = 3; y < 29; y++) for (let x = 0; x < 95; x++) if (Math.abs(g[y*96 + x] - g[y*96 + x + 1]) > 24) n++;
+  return n / (26 * 95);
+}
+let running = false, paused = false;
+setInterval(() => {
+  if (!running || paused || showing || aiBusy || document.hidden) return;
+  const sig = sceneSig(); if (!sig) return;
+  const now = Date.now(), moved = lastSig ? sigDiff(sig, lastSig) : 99; lastSig = sig;
+  const plateLike = edgeScore(sig) >= 0.03;
+  plateTicks = plateLike ? plateTicks + 1 : 0;
+  emptyTicks = plateLike ? 0 : emptyTicks + 1;
+  if (emptyTicks >= 3) noneStreak = 0;
+  // After a read, wait for the car to leave the box (or a clearly different picture, or 20s).
+  if (!armed && (emptyTicks >= 3 || (lastSentSig && sigDiff(sig, lastSentSig) > 46) || now - lastAiAt > 20000)) armed = true;
+  if (!armed) { seenEl.textContent = lastPlate ? 'Done: ' + pretty(lastPlate) + ' – next car' : ''; return; }
+  if (!plateLike || plateTicks < 2) { seenEl.textContent = 'Looking for a plate…'; return; }
+  if (moved > 45) { seenEl.textContent = 'Hold still…'; return; }
+  if (now - lastAiAt < 1500 || now - lastNoneAt < 2500 * Math.pow(2, Math.min(noneStreak, 3) - 1)) return;
+  while (aiTimes.length && now - aiTimes[0] > 60000) aiTimes.shift();
+  if (aiTimes.length >= 20) { seenEl.textContent = 'Paused – too many reads this minute'; return; }
+  lastSentSig = sig; lastAiAt = now; aiTimes.push(now); armed = false;
+  readNow(true);
+}, 250);
+guide.addEventListener('click', () => readNow(false));
+
+/* ---------- Camera ---------- */
+let stream = null;
+async function startCamera() {
+  unlockAudio();
+  device = $('deviceName').value.trim() || device; store.set('device', device);
+  $('msg').textContent = 'Starting camera…';
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nocam');
+    stream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 }, height:{ ideal:1080 } } });
+    video.srcObject = stream; await video.play();
+    $('startPanel').style.display = 'none';
+    running = true; paused = false;
+    setupTorch();
+  } catch (e) {
+    $('msg').textContent = 'The live camera isn\'t available here. Use Photo to snap a plate, or Type reg.';
+    $('btnStart').style.display = 'none';
+    $('startPanel').style.background = 'transparent';
+    $('startPanel').style.pointerEvents = 'none';
+    $('msg').style.pointerEvents = 'none';
+    guide.style.display = 'none';
+  }
+}
+function setupTorch() {
+  try {
+    const track = stream.getVideoTracks()[0], caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.torch) {
+      const b = $('btnTorch'); b.style.display = ''; let on = false;
+      b.onclick = async () => { on = !on; try { await track.applyConstraints({ advanced:[{ torch:on }] }); b.style.background = on ? '#facc15' : ''; b.style.color = on ? '#111' : ''; } catch (e) {} };
+    }
+  } catch (e) {}
+}
+$('btnStart').onclick = startCamera;
+$('btnPause').onclick = () => {
+  if (!running) return;
+  paused = !paused; $('btnPause').textContent = paused ? 'Resume' : 'Pause';
+  hintEl.textContent = paused ? 'Paused' : 'Point at a number plate'; seenEl.textContent = '';
+};
+
+/* ---------- Photo and typed entry ---------- */
+$('btnPhoto').onclick = () => { unlockAudio(); $('photoInput').click(); };
+$('photoInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  seenEl.textContent = 'Reading photo…';
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(f); });
+    const c = document.createElement('canvas'), s = Math.min(1, 1200 / img.naturalWidth);
+    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    let plate = null;
+    try { const r = await aiRead(c); plate = r.plate || null; }
+    catch (err) { try { plate = await tessRead(c); } catch (e2) {} }
+    seenEl.textContent = '';
+    if (plate) record(plate, 'photo'); else openType('Couldn\'t read it – type it');
+  } catch (err) { seenEl.textContent = 'Couldn\'t read that photo'; openType(); }
+});
+function openType(ph) { unlockAudio(); $('typeReg').value = ''; $('typeName').value = ''; $('typeReg').placeholder = ph || 'AB12 CDE'; $('typeModal').classList.add('show'); setTimeout(() => $('typeReg').focus(), 50); }
+$('btnType').onclick = () => openType();
+$('btnTypeCancel').onclick = () => $('typeModal').classList.remove('show');
+function typedGo() {
+  const r = norm($('typeReg').value); if (!r) return;
+  const n = $('typeName').value.trim();
+  $('typeModal').classList.remove('show'); record(r, 'typed', n);
+}
+$('btnTypeGo').onclick = typedGo;
+$('typeReg').addEventListener('keydown', e => { if (e.key === 'Enter') typedGo(); });
+
+/* ---------- Start ---------- */
+(async function init() {
+  $('deviceName').value = device;
+  if (!formRef) { $('app').style.display = 'none'; $('notFound').style.display = 'block'; return; }
+  try {
+    const res = await fetch(WORKER_URL + '/v2/vreg/get?ref=' + encodeURIComponent(formRef));
+    const d = await res.json();
+    if (!d.ok || !d.form) throw new Error('nf');
+    form = d.form;
+    $('hSite').textContent = form.site;
+    $('hSub').textContent = form.production + (form.bookingRef ? ' · ' + form.bookingRef : '');
+    document.title = 'Scanner — ' + form.site;
+  } catch (e) { $('app').style.display = 'none'; $('notFound').style.display = 'block'; return; }
+  setQueue(getQueue()); drawRecent(); refreshCount(); setInterval(refreshCount, 30000); flushQueue();
+})();
+</script>
+</body>
+</html>
